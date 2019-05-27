@@ -1,0 +1,77 @@
+# depslib dependency file v1.0
+1557683443 source:/home/snake/Cods/CodeBlocks/combination j m/RadioTR/main.cpp
+	<iostream>
+
+1557687535 source:/home/snake/Cods/CodeBlocks/combination j m/RadioTR/src/SerialTR.cpp
+	"SerialTR.h"
+
+1557764698 /home/snake/Cods/CodeBlocks/combination j m/RadioTR/include/SerialTR.h
+	<atomic>
+	<iostream>
+	<fcntl.h>
+	<termios.h>
+	<unistd.h>
+	<errno.h>
+	<string.h>
+	<mutex>
+	<condition_variable>
+	"Error.h"
+
+1552413668 source:/home/snake/Cods/CodeBlocks/combination j m/RadioTR/Error.cpp
+	"Error.h"
+
+1552413668 /home/snake/Cods/CodeBlocks/combination j m/RadioTR/Error.h
+	<iostream>
+	<time.h>
+	<stdio.h>
+
+1552413668 source:/home/snake/Cods/CodeBlocks/RadioTR/Error.cpp
+	"Error.h"
+
+1552413668 /home/snake/Cods/CodeBlocks/RadioTR/Error.h
+	<iostream>
+	<time.h>
+	<stdio.h>
+
+1558901576 source:/home/snake/Cods/CodeBlocks/RadioTR/main.cpp
+	<iostream>
+	<thread>
+	<future>
+	"TRManager.h"
+	"SerialTR.h"
+
+1558465245 source:/home/snake/Cods/CodeBlocks/RadioTR/SerialTR.cpp
+	"SerialTR.h"
+
+1558802963 /home/snake/Cods/CodeBlocks/RadioTR/SerialTR.h
+	<iostream>
+	<fcntl.h>
+	<termios.h>
+	<unistd.h>
+	<errno.h>
+	<string.h>
+	"Error.h"
+
+1557768459 source:/home/snake/Cods/CodeBlocks/RadioTR/src/TRManager.cpp
+	"TRManager.h"
+
+1557768717 /home/snake/Cods/CodeBlocks/RadioTR/include/TRManager.h
+
+1558936534 source:/home/snake/Cods/CodeBlocks/RadioTR/TRManager.cpp
+	"TRManager.h"
+
+1558936406 /home/snake/Cods/CodeBlocks/RadioTR/TRManager.h
+	<iostream>
+	<queue>
+	"SerialTR.h"
+	"Error.h"
+	<mutex>
+	<thread>
+
+1558804965 source:/home/snake/Cods/CodeBlocks/RadioTR/EXTTL.cpp
+	"EXTTL.h"
+
+1558896707 /home/snake/Cods/CodeBlocks/RadioTR/EXTTL.h
+	"TRManager.h"
+	<thread>
+
