@@ -31,10 +31,26 @@ try
         if(str == "ends")
             while(!trm.isEmpty('s'))
                 {
-                    string str = trm.readBuffer('s');
-                    for(short o:str)
-                        cout<<setbase(16)<<(short)o<<" <> ";
+                    //for(auto o:trm.readSettingBuffer())
+                        for(auto o:trm.readSettingBuffer())
+                           {
+                               cout<<setbase(16)<<(short)o<<" - ";
+                           }
+                        //if(trm.readSettingBuffer()[2] == 0xc0)
+                          //  cout<<"A";
+                        //if(trm.readSettingBuffer()[2] == 0xc3)
+                          //  cout<<"B";
                 }
+
+         if(str == "endv")
+                {
+                        for(auto o:trm.getCurrentModel())
+                           {
+                               cout<<setbase(16)<<(short)o<<" - ";
+                           }
+                }
+
+
         if(str == "endd")
             while(!trm.isEmpty('d'))
                 cout<<trm.readBuffer('d');
@@ -57,6 +73,30 @@ try
             trm.setMode(radioWMode::zero);
         }
 
+        if(str == "stst")
+        {
+            trm.setAddr(address{0x00,0xFF});
+            trm.setChannel(0xff);
+            trm.setTransmissionPower(radioTransmissionPower::_27dBm);
+            trm.setTransmissionMode(radioTransmissionMode::Fixed);
+            trm.setDateRate(radioDataRate::_4k8);
+            trm.setUARTBaudRate(radioUARTBaudRate::_2400bps);
+
+            trm.setUARTParityBit(radioUARTParityBit::_8E1);
+
+            trm.setIODeriveMode(radioIODeriveMode::PP);
+            trm.setWirelessWakeupTime(radioWirelessWakeupTime::_1000ms);
+            trm.setFEC(radioFEC::FEC_OFF);
+            trm.saveSettings(false);
+        }
+        if(str == "prnt")
+        {
+            trm.printSetting(trm.getCurrentSetting());
+        }
+                if(str == "vw")
+        {
+            trm.getCurrentSetting().printBitRep();
+        }
 
         if(str == "get")
         {
@@ -67,7 +107,7 @@ try
 
         if(str == "tst")
         {
-            trm.getSetting();
+            trm.getVersionFromDevice();
         }
 
 

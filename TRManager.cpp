@@ -1,7 +1,7 @@
 #include "TRManager.h"
 
 TRManager::TRManager(std::string str):tr{str},fd{-1},AUX{0},MD{radioWMode::unknown},Buff{0},deviceReady{0}
-    ,databuffer{},msgbuffer{},sttngbuffer{},currentSetting{}
+    ,databuffer{},msgbuffer{},sttngbuffer{},currentSetting{},model{},active{true}
 {
 }
 
@@ -27,34 +27,45 @@ void TRManager::readDevice()
 {
     if(fd == -1)
         throw Error("5");
-    char tmp[600]{};
+    char tmpcs[100]{};
+    unsigned char tmpuscs[100];
+    memset(tmpcs,0,sizeof(tmpcs));
+    memset(tmpuscs,0,sizeof(tmpuscs));
     int ctr = 0;
-
     char ch{};
 
-    while(read(fd,&ch,1))
+    while(read(fd,&ch,1) && active)
     {
-        //std::cout<<ch;  /////////////////////////////***************************
-        //tmp.push_back(ch);
-        tmp[ctr++] = ch;
-
-        if(strcmp(tmp,"#S,") == 0)
+        std::cout<<ch;   /////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+        tmpcs[ctr++] = ch;
+        if(strcmp(tmpcs,"#S,") == 0)
         {
-            read(fd,&tmp[3],14);
-            std::vector<char> tmpv{};
+            read(fd,tmpuscs,10);
+            do
+            {
+                read(fd,&ch,1);
+                tmpcs[ctr++] = ch;
+            }while(ch != '\0');
+
+            std::vector<unsigned char> tmpv{};
             std::lock_guard<std::mutex> lg{mu};
-            for(int i = 0; i<17; i++)
-                tmpv.push_back(tmp[i]);
+            for(int i = 0; i<10; i++)
+                {
+                    tmpv.push_back(tmpuscs[i]);
+                }
             sttngbuffer.push(tmpv);
-            return;
+            memset(tmpcs,0,sizeof(tmpcs));
+            ctr = 0;
+            sttngSet(tmpv);
+            vrsnSet(tmpv);
+            continue;
         }
 
         if(ch == '\0')
-        break;
-    }
-
-    std::string tmps{tmp};
-        {
+            {
+            std::string tmps{tmpcs};
+            memset(tmpcs,0,sizeof(tmpcs));
+            ctr = 0;
             if(tmps.find("#D") != std::string::npos)
             {
                 std::lock_guard<std::mutex> lg{mu};
@@ -73,7 +84,36 @@ void TRManager::readDevice()
             react(tmps.c_str());
             tmps.clear();
         }
+    }
 }
+
+
+void TRManager::sttngSet(std::vector<unsigned char> v)
+{
+    if(!v.empty())
+    {
+        if(v[0] == 0xc0 || v[0] == 0xc2)
+        {
+            memcpy(&currentSetting,v.data(),6);
+        }
+    }
+}
+
+void TRManager::vrsnSet(std::vector<unsigned char> v)
+{
+    if(!v.empty())
+    {
+        if(v[0] == 0xc3)
+        {
+            model.clear();
+            for(int i = 0; i < 4; i++)
+            {
+                model.push_back(v[i]);
+            }
+        }
+    }
+}
+
 
 std::string TRManager::readBuffer(const char ch)
 {
@@ -90,14 +130,22 @@ std::string TRManager::readBuffer(const char ch)
         tmp = msgbuffer.front();
         msgbuffer.pop();
     }
-    if(ch == 's' && !sttngbuffer.empty())
-    {
-        tmp = sttngbuffer.front();
-        sttngbuffer.pop();
-    }
+
     return tmp;
 }
 
+
+
+std::vector<unsigned char> TRManager::readSettingBuffer()
+{
+    std::vector<unsigned char> tmpv;
+    if(!sttngbuffer.empty())
+    {
+        tmpv = sttngbuffer.front();
+        sttngbuffer.pop();
+    }
+    return tmpv;
+}
 
 
 void TRManager::init()
@@ -133,6 +181,10 @@ void TRManager::react(std::string str)
         writeStr("#R,A|");
 
     if(str.compare("#MS,BF|\r\n")==0)
+       //|| str.compare("#MS,B1|\r\n")==0 || str.compare("#MS,B2|\r\n")==0 ||
+       //str.compare("#MS,B3|\r\n")==0 || str.compare("#MS,B4|\r\n")==0 || str.compare("#MS,B5|\r\n")==0 ||
+       //str.compare("#MS,B6|\r\n")==0 || str.compare("#MS,B7|\r\n")==0 || str.compare("#MS,B8|\r\n")==0 ||
+       //str.compare("#MS,B9|\r\n")==0 )
         writeStr("#R,A|");
 
     if(str.compare("#MS,AH|\r\n")==0)
@@ -221,7 +273,7 @@ void TRManager::setMode(radioWMode rm)
 }
 
 
-void TRManager::getSetting()
+void TRManager::getSettingFromDevice()
 {
     radioWMode mode = MD;
 
@@ -233,19 +285,68 @@ void TRManager::getSetting()
     tmp.push_back(0xc1);
     tmp += "|";
 
+    for(int i = 0 ; i < 3; i++)
+    {
+        if(AUX == true)
+            break;
+        if(AUX == false)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds((i+1)*50));
+            }
+    }
+    if(AUX == false)
+        return;
     if(MD != radioWMode::three)
     {
         setMode(radioWMode::three);
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     writeStr(tmp);
-
     if(mode != radioWMode::three)
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(100));
             setMode(mode);
         }
 }
+
+
+
+void TRManager::getVersionFromDevice()
+{
+    radioWMode mode = MD;
+
+    std::string tmp{};
+
+    tmp += "#CS,";
+    tmp.push_back(0xc3);
+    tmp.push_back(0xc3);
+    tmp.push_back(0xc3);
+    tmp += "|";
+
+    for(int i = 0 ; i < 3; i++)
+    {
+        if(AUX == true)
+            break;
+        if(AUX == false)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds((i+1)*50));
+            }
+    }
+    if(AUX == false)
+        return;
+    if(MD != radioWMode::three)
+    {
+        setMode(radioWMode::three);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    writeStr(tmp);
+    if(mode != radioWMode::three)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            setMode(mode);
+        }
+}
+
 
 
 void TRManager::transmit(std::string str, radioWMode rm)
@@ -276,14 +377,14 @@ void TRManager::transmit(std::string str, radioWMode rm)
 
 void TRManager::setAddr(address addr)
 {
-    currentSetting.addr.ADDH = addr.ADDH;
-    currentSetting.addr.ADDL = addr.ADDL;
+    memcpy(&currentSetting.addr,&addr,sizeof(address));
 }
 
 
-void TRManager::setChannel(char commChannel)
+void TRManager::setChannel(unsigned char commChannel)
 {
-    currentSetting.CHAN = commChannel;
+    currentSetting.CHAN &= 0b00000000;
+    memcpy(&currentSetting.CHAN,&commChannel,sizeof(unsigned char));
     currentSetting.CHAN &= 0b00011111;
 }
 
@@ -330,42 +431,42 @@ void TRManager::setDateRate(radioDataRate rdr)
     if(rdr == radioDataRate::_1k2)
     {
         currentSetting.SPED &= 0b11111000;
-        currentSetting.SPED |= 0b11111000;
+        currentSetting.SPED |= 0b00000000;
     }
     if(rdr == radioDataRate::_2k4)
     {
         currentSetting.SPED &= 0b11111000;
-        currentSetting.SPED |= 0b11111001;
+        currentSetting.SPED |= 0b00000001;
     }
     if(rdr == radioDataRate::_4k8)
     {
         currentSetting.SPED &= 0b11111000;
-        currentSetting.SPED |= 0b11111010;
+        currentSetting.SPED |= 0b00000010;
     }
     if(rdr == radioDataRate::_9k6)
     {
         currentSetting.SPED &= 0b11111000;
-        currentSetting.SPED |= 0b11111011;
+        currentSetting.SPED |= 0b00000011;
     }
     if(rdr == radioDataRate::_19k2)
     {
         currentSetting.SPED &= 0b11111000;
-        currentSetting.SPED |= 0b11111100;
+        currentSetting.SPED |= 0b00000100;
     }
     if(rdr == radioDataRate::_38k4)
     {
         currentSetting.SPED &= 0b11111000;
-        currentSetting.SPED |= 0b11111101;
+        currentSetting.SPED |= 0b00000101;
     }
     if(rdr == radioDataRate::_50k)
     {
         currentSetting.SPED &= 0b11111000;
-        currentSetting.SPED |= 0b11111110;
+        currentSetting.SPED |= 0b00000110;
     }
     if(rdr == radioDataRate::_70k)
     {
         currentSetting.SPED &= 0b11111000;
-        currentSetting.SPED |= 0b11111111;
+        currentSetting.SPED |= 0b00000111;
     }
 }
 
@@ -374,42 +475,42 @@ void TRManager::setUARTBaudRate(radioUARTBaudRate rubr)
     if(rubr == radioUARTBaudRate::_115200bps)
     {
         currentSetting.SPED &= 0b11000111;
-        currentSetting.SPED |= 0b11111111;
+        currentSetting.SPED |= 0b00111000;
     }
     if(rubr == radioUARTBaudRate::_57600bps)
     {
         currentSetting.SPED &= 0b11000111;
-        currentSetting.SPED |= 0b11110111;
+        currentSetting.SPED |= 0b00110000;
     }
     if(rubr == radioUARTBaudRate::_38400bps)
     {
         currentSetting.SPED &= 0b11000111;
-        currentSetting.SPED |= 0b11101111;
+        currentSetting.SPED |= 0b00101000;
     }
     if(rubr == radioUARTBaudRate::_19200bps)
     {
         currentSetting.SPED &= 0b11000111;
-        currentSetting.SPED |= 0b11100111;
+        currentSetting.SPED |= 0b00100000;
     }
     if(rubr == radioUARTBaudRate::_9600bps)
     {
         currentSetting.SPED &= 0b11000111;
-        currentSetting.SPED |= 0b11011111;
+        currentSetting.SPED |= 0b00011000;
     }
     if(rubr == radioUARTBaudRate::_4800bps)
     {
         currentSetting.SPED &= 0b11000111;
-        currentSetting.SPED |= 0b11010111;
+        currentSetting.SPED |= 0b00010000;
     }
     if(rubr == radioUARTBaudRate::_2400bps)
     {
         currentSetting.SPED &= 0b11000111;
-        currentSetting.SPED |= 0b11001111;
+        currentSetting.SPED |= 0b00001000;
     }
     if(rubr == radioUARTBaudRate::_1200bps)
     {
         currentSetting.SPED &= 0b11000111;
-        currentSetting.SPED |= 0b11000111;
+        currentSetting.SPED |= 0b00000000;
     }
 }
 
@@ -418,17 +519,17 @@ void TRManager::setUARTParityBit(radioUARTParityBit rupb)
     if(rupb == radioUARTParityBit::_8N1)
     {
         currentSetting.SPED &= 0b00111111;
-        currentSetting.SPED |= 0b00111111;
+        currentSetting.SPED |= 0b00000000;
     }
     if(rupb == radioUARTParityBit::_8O1)
     {
         currentSetting.SPED &= 0b00111111;
-        currentSetting.SPED |= 0b01111111;
+        currentSetting.SPED |= 0b01000000;
     }
     if(rupb == radioUARTParityBit::_8E1)
     {
         currentSetting.SPED &= 0b00111111;
-        currentSetting.SPED |= 0b10111111;
+        currentSetting.SPED |= 0b10000000;
     }
 }
 
@@ -484,7 +585,7 @@ void TRManager::setWirelessWakeupTime(radioWirelessWakeupTime rwwt)
         currentSetting.OPTN &= 0b11000111;
         currentSetting.OPTN |= 0b00110000;
     }
-    if(rwwt == radioWirelessWakeupTime::_1750ms)
+    if(rwwt == radioWirelessWakeupTime::_2000ms)
     {
         currentSetting.OPTN &= 0b11000111;
         currentSetting.OPTN |= 0b00111000;
@@ -537,7 +638,115 @@ setting TRManager::getCurrentSetting()
     return currentSetting;
 }
 
+std::vector<unsigned char> TRManager::getCurrentModel()
+{
+    return model;
+}
 
 
+void TRManager::printSetting(setting stt)
+{
+    if(!(bool)currentSetting)
+        {
+            std::cout<<"not set!"<<std::endl;
+            return;
+        }
+
+    if(stt.HEAD == 0xc0)
+        std::cout<<"permanent setting\n";
+    if(stt.HEAD == 0xc2)
+        std::cout<<"temporary setting\n";
+
+    std::cout<<"ADDH: "<<std::setbase(16)<<(short)stt.addr.ADDH<<std::endl;
+    std::cout<<"ADDL: "<<std::setbase(16)<<(short)stt.addr.ADDL<<std::endl;
+
+    if((stt.SPED & 0b00000111) == 0b00000111)
+        std::cout<<"Air Date Rate: "<<"70kbps"<<std::endl;
+    if((stt.SPED & 0b00000111) == 0b00000110)
+        std::cout<<"Air Date Rate: "<<"50kbps"<<std::endl;
+    if((stt.SPED & 0b00000111) == 0b00000101)
+        std::cout<<"Air Date Rate: "<<"38kbps"<<std::endl;
+    if((stt.SPED & 0b00000111) == 0b00000100)
+        std::cout<<"Air Date Rate: "<<"19kbps"<<std::endl;
+    if((stt.SPED & 0b00000111) == 0b00000011)
+        std::cout<<"Air Date Rate: "<<"9.6kbps"<<std::endl;
+    if((stt.SPED & 0b00000111) == 0b00000010)
+        std::cout<<"Air Date Rate: "<<"4.8kbps"<<std::endl;
+    if((stt.SPED & 0b00000111) == 0b00000001)
+        std::cout<<"Air Date Rate: "<<"2.4kbps"<<std::endl;
+    if((stt.SPED & 0b00000111) == 0b00000000)
+        std::cout<<"Air Date Rate: "<<"1.2kbps"<<std::endl;
+
+    if((stt.SPED & 0b00111000) == 0b00111000)
+        std::cout<<"UART Baud Rate: "<<"115200bps"<<std::endl;
+    if((stt.SPED & 0b00111000) == 0b00110000)
+        std::cout<<"UART Baud Rate: "<<"57600bps"<<std::endl;
+    if((stt.SPED & 0b00111000) == 0b00101000)
+        std::cout<<"UART Baud Rate: "<<"38400bps"<<std::endl;
+    if((stt.SPED & 0b00111000) == 0b00100000)
+        std::cout<<"UART Baud Rate: "<<"19200bps"<<std::endl;
+    if((stt.SPED & 0b00111000) == 0b00011000)
+        std::cout<<"UART Baud Rate: "<<"9600bps"<<std::endl;
+    if((stt.SPED & 0b00111000) == 0b00010000)
+        std::cout<<"UART Baud Rate: "<<"4800bps"<<std::endl;
+    if((stt.SPED & 0b00111000) == 0b00001000)
+        std::cout<<"UART Baud Rate: "<<"2400bps"<<std::endl;
+    if((stt.SPED & 0b00111000) == 0b00000000)
+        std::cout<<"UART Baud Rate: "<<"1200bps"<<std::endl;
+
+    if((stt.SPED & 0b11000000) == 0b11000000)
+        std::cout<<"UART Parity Bit: "<<"8N1"<<std::endl;
+    if((stt.SPED & 0b11000000) == 0b10000000)
+        std::cout<<"UART Parity Bit: "<<"8E1"<<std::endl;
+    if((stt.SPED & 0b11000000) == 0b01000000)
+        std::cout<<"UART Parity Bit: "<<"8O1"<<std::endl;
+    if((stt.SPED & 0b11000000) == 0b00000000)
+        std::cout<<"UART Parity Bit: "<<"8N1"<<std::endl;
+
+    stt.CHAN = stt.CHAN & 0b00011111;
+    std::cout<<"Channel: "<<std::setbase(10)<<410+(unsigned short)(stt.CHAN)<<"MHz"<<std::endl;
+
+    if((stt.OPTN & 0b00000011) == 0b00000000)
+        std::cout<<"Transmission Power: "<<"30dBm"<<std::endl;
+    if((stt.OPTN & 0b00000011) == 0b00000001)
+        std::cout<<"Transmission Power: "<<"27dBm"<<std::endl;
+    if((stt.OPTN & 0b00000011) == 0b00000010)
+        std::cout<<"Transmission Power: "<<"24dBm"<<std::endl;
+    if((stt.OPTN & 0b00000011) == 0b00000011)
+        std::cout<<"Transmission Power: "<<"21dBm"<<std::endl;
+
+    if((stt.OPTN & 0b00000100) == 0b00000000)
+        std::cout<<"FEC: OFF"<<std::endl;
+    if((stt.OPTN & 0b00000100) == 0b00000100)
+        std::cout<<"FEC: ON "<<std::endl;
+
+    if((stt.OPTN & 0b00111000) == 0b00000000)
+        std::cout<<"Wireless Wakeup time: "<<"250ms"<<std::endl;
+    if((stt.OPTN & 0b00111000) == 0b00001000)
+        std::cout<<"Wireless Wakeup time: "<<"500ms"<<std::endl;
+    if((stt.OPTN & 0b00111000) == 0b00010000)
+        std::cout<<"Wireless Wakeup time: "<<"750ms"<<std::endl;
+    if((stt.OPTN & 0b00111000) == 0b00011000)
+        std::cout<<"Wireless Wakeup time: "<<"1000ms"<<std::endl;
+    if((stt.OPTN & 0b00111000) == 0b00100000)
+        std::cout<<"Wireless Wakeup time: "<<"1250ms"<<std::endl;
+    if((stt.OPTN & 0b00111000) == 0b00101000)
+        std::cout<<"Wireless Wakeup time: "<<"1500ms"<<std::endl;
+    if((stt.OPTN & 0b00111000) == 0b00110000)
+        std::cout<<"Wireless Wakeup time: "<<"1750ms"<<std::endl;
+    if((stt.OPTN & 0b00111000) == 0b00111000)
+        std::cout<<"Wireless Wakeup time: "<<"2000ms"<<std::endl;
+
+    if((stt.OPTN & 0b01000000) == 0b00000000)
+        std::cout<<"IO Derive mode: "<<"Open Collector"<<std::endl;
+    if((stt.OPTN & 0b01000000) == 0b01000000)
+        std::cout<<"IO Derive mode: "<<"Push Pull"<<std::endl;
+
+    if((stt.OPTN & 0b10000000) == 0b00000000)
+        std::cout<<"Fixed Transmission: "<<"Transparent"<<std::endl;
+    if((stt.OPTN & 0b10000000) == 0b10000000)
+        std::cout<<"Fixed Transmission: "<<"Fixed"<<std::endl;
+
+}
 
 
