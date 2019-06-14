@@ -1,8 +1,9 @@
 #include "TRManager.h"
 
 TRManager::TRManager(std::string str):tr{str},fd{-1},AUX{0},MD{radioWMode::unknown},Buff{0},deviceReady{0}
-    ,databuffer{},msgbuffer{},sttngbuffer{},currentSetting{},model{},active{true}
+    ,databuffer{},msgbuffer{},sttngbuffer{},sendBuffer{},currentSetting{},model{},active{true}
 {
+    set_parameters({0x00,0x00},0x00);
 }
 
 TRManager::~TRManager()
@@ -18,9 +19,22 @@ int TRManager::connect(std::string str)
 void TRManager::writeStr(std::string str)
 {
     if(fd == -1)
-        throw Error("4");
+        throw Error{"4"};
+    if(str.length()>510)
+        throw Error{"long input str"};
     if(fd != -1)
         write(fd,str.c_str(),str.size());
+}
+
+void TRManager::writeStr(std::vector<unsigned char> v)
+{
+    if(fd == -1)
+        throw Error("5");
+    if(v.size()>510)
+        throw Error{"long input size"};
+    if(fd != -1)
+        //for(auto o:v)
+        write(fd,v.data(),v.size());
 }
 
 void TRManager::readDevice()
@@ -154,6 +168,7 @@ void TRManager::init()
     writeStr("SS");
     writeStr("#G,AUX|");
     writeStr("#G,B|");
+    writeStr("#R,A|");
     writeStr("#G,MD");
     std::this_thread::sleep_for(std::chrono::milliseconds(100));
     deviceReady = true;
@@ -348,28 +363,110 @@ void TRManager::getVersionFromDevice()
 }
 
 
-
-void TRManager::transmit(std::string str, radioWMode rm)
+void TRManager::resetDevice()
 {
-
-    /// address and channel must be added , is AUX measured??
-    if(rm == radioWMode::three || rm == radioWMode::two)
-        return;
+    radioWMode mode = MD;
 
     std::string tmp{};
-    tmp += "#T,";
-    tmp.push_back(0xFF);
-    tmp.push_back(0xFF);
-    tmp += str;
+
+    tmp += "#CS,";
+    tmp.push_back(0xc4);
+    tmp.push_back(0xc4);
+    tmp.push_back(0xc4);
     tmp += "|";
 
-    radioWMode mode = MD;
-    if(MD != rm) /// first go to desired mode!! otherwise causes high latency!!
+    for(int i = 0 ; i < 3; i++)
     {
-        setMode(rm);
-        std::this_thread::sleep_for(std::chrono::milliseconds(200));
+        if(AUX == true)
+            break;
+        if(AUX == false)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds((i+1)*50));
+            }
+    }
+    if(AUX == false)
+        return;
+    if(MD != radioWMode::three)
+    {
+        setMode(radioWMode::three);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
     }
     writeStr(tmp);
+    if(mode != radioWMode::three)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            setMode(mode);
+        }
+}
+
+
+void TRManager::setDeviceSetting(setting stt)
+{
+    radioWMode mode = MD;
+    std::vector <unsigned char> tmp;
+    tmp.push_back('@');
+    tmp.push_back(stt.HEAD);
+    tmp.push_back(stt.addr.ADDH);
+    tmp.push_back(stt.addr.ADDL);
+    tmp.push_back(stt.SPED);
+    tmp.push_back(stt.CHAN);
+    tmp.push_back(stt.OPTN);
+
+    for(int i = 0 ; i < 3; i++)
+    {
+        if(AUX == true)
+            break;
+        if(AUX == false)
+            {
+                std::this_thread::sleep_for(std::chrono::milliseconds((i+1)*50));
+            }
+    }
+    if(AUX == false)
+        return;
+    if(MD != radioWMode::three)
+    {
+        setMode(radioWMode::three);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+    writeStr(tmp);
+    if(mode != radioWMode::three)
+        {
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+            setMode(mode);
+        }
+}
+
+void TRManager::transmit(targetH th, std::string str, radioWMode rm)
+{
+    /// address and channel must be added , is AUX measured??
+    if(rm == radioWMode::three || rm == radioWMode::two)
+        {
+            return;
+        }
+    int len = str.length();
+    int ctr = std::ceil(((double)len)/40);
+
+    radioWMode mode = MD;
+    if(MD != rm) /// first go to desired mode!! otherwise successive writes causes higher latency!!
+    {
+        setMode(rm);
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+    }
+
+    for(int i = 0; i < ctr; i++)
+    {
+    std::string tmp{};
+    tmp += "$";
+    tmp.push_back(th.targetAddr.ADDH);
+    tmp.push_back(th.targetAddr.ADDL);
+    tmp.push_back(th.targetChannel);
+    tmp += str.substr(i*40,40);
+    while(AUX == false)
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    writeStr(tmp);
+    AUX = false;
+    }
+
     if(mode != rm)
         setMode(mode);
 }
@@ -384,6 +481,7 @@ void TRManager::setAddr(address addr)
 void TRManager::setChannel(unsigned char commChannel)
 {
     currentSetting.CHAN &= 0b00000000;
+
     memcpy(&currentSetting.CHAN,&commChannel,sizeof(unsigned char));
     currentSetting.CHAN &= 0b00011111;
 }
@@ -606,8 +704,9 @@ void TRManager::setFEC(radioFEC rfec)
     }
 }
 
-void TRManager::saveSettings(bool permanent)
+void TRManager::setSettingsPermanently(bool permanent)
 {
+    memset(&currentSetting.HEAD , 0 , 1);
     if(permanent == true)
         currentSetting.HEAD = 0xC0;
     if(permanent == false)
@@ -621,7 +720,7 @@ void TRManager::set_parameters(address addr,char commChannel,bool permanent,radi
 {
     setAddr(addr);
     setChannel(commChannel);
-    saveSettings(permanent);
+    setSettingsPermanently(permanent);
     setTransmissionPower(rtp);
     setTransmissionMode(rtm);
     setDateRate(rdr);

@@ -26,8 +26,8 @@ int SerialTR::connect(std::string str)
         throw Error("2");
     }
     memset(&SerialPortSettings,0,sizeof(struct termios));
-    cfsetispeed(&SerialPortSettings,B9600);
-    cfsetispeed(&SerialPortSettings,B9600);
+    cfsetispeed(&SerialPortSettings,B500000);
+    cfsetispeed(&SerialPortSettings,B500000);
     SerialPortSettings.c_cflag &= ~PARENB;
     SerialPortSettings.c_cflag &= ~CSTOPB;
     SerialPortSettings.c_cflag &= ~CSIZE;

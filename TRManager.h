@@ -8,6 +8,7 @@
 #include <thread>
 #include <vector>
 #include <iomanip>
+#include <math.h>
 
 #include <bitset>
 
@@ -26,7 +27,9 @@ struct address
     unsigned char ADDH;
     unsigned char ADDL;
     address():ADDH{0},ADDL{0}{}
-    address(unsigned char a, unsigned char b):ADDH(a),ADDL{b}{}
+    address(unsigned char a, unsigned char b):ADDH(a),ADDL{b}
+    {
+    }
 };
 
 struct setting
@@ -63,7 +66,14 @@ struct setting
     }
 };
 
-
+struct targetH
+{
+    address targetAddr;
+    unsigned char targetChannel;
+    targetH():targetAddr{},targetChannel{}{}
+    targetH(unsigned char a, unsigned char b, unsigned char c):targetAddr{a,b},targetChannel{c}
+    {}
+};
 
 
 class TRManager
@@ -73,6 +83,7 @@ class TRManager
         virtual ~TRManager();
         int connect(std::string str="");
         void writeStr(std::string str);
+        void writeStr(std::vector<unsigned char>);
         void readDevice();
         void init();
         std::string readBuffer(const char ch);
@@ -86,8 +97,10 @@ class TRManager
         void printSetting(setting);
         void getSettingFromDevice();
         void getVersionFromDevice();
+        void resetDevice();
+        void setDeviceSetting(setting);
 
-        void transmit(std::string str,radioWMode rm=radioWMode::zero);
+        void transmit(targetH th, std::string str,radioWMode rm);
 
         void setAddr(address adr);
         void setChannel(unsigned char commChannel);
@@ -99,13 +112,14 @@ class TRManager
         void setIODeriveMode(radioIODeriveMode riodm=radioIODeriveMode::PP);
         void setWirelessWakeupTime(radioWirelessWakeupTime rwwt=radioWirelessWakeupTime::_250ms);
         void setFEC(radioFEC rfec=radioFEC::FEC_ON);
-        void saveSettings(bool permanent=true);
-        void set_parameters(address addr,char commChannel,bool permanent=true,radioTransmissionPower rtp=radioTransmissionPower::_30dBm,
+        void setSettingsPermanently(bool permanent=true);
+        void set_parameters(address addr,char commChannel,bool permanent=false,radioTransmissionPower rtp=radioTransmissionPower::_30dBm,
                             radioTransmissionMode rtm=radioTransmissionMode::Fixed , radioDataRate rdr=radioDataRate::_1k2, radioUARTBaudRate rubr=radioUARTBaudRate::_9600bps,
                             radioUARTParityBit rupb=radioUARTParityBit::_8N1,radioIODeriveMode riodm=radioIODeriveMode::PP,
                             radioWirelessWakeupTime rwwt=radioWirelessWakeupTime::_250ms,radioFEC rfec=radioFEC::FEC_ON);
         setting getCurrentSetting();
         std::vector<unsigned char> getCurrentModel();
+
 
     protected:
 
@@ -121,6 +135,7 @@ class TRManager
         std::queue<std::string> databuffer;
         std::queue<std::string> msgbuffer;
         std::queue<std::vector<unsigned char>> sttngbuffer;
+        std::queue<std::string> sendBuffer;
         std::mutex mu{};
         setting currentSetting;
         std::vector<unsigned char> model;

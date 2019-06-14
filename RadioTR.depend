@@ -33,7 +33,7 @@
 	<time.h>
 	<stdio.h>
 
-1559884295 source:/home/snake/Cods/CodeBlocks/RadioTR/main.cpp
+1560106257 source:/home/snake/Cods/CodeBlocks/RadioTR/main.cpp
 	<iostream>
 	<thread>
 	<future>
@@ -41,7 +41,7 @@
 	"TRManager.h"
 	"SerialTR.h"
 
-1558465245 source:/home/snake/Cods/CodeBlocks/RadioTR/SerialTR.cpp
+1560106200 source:/home/snake/Cods/CodeBlocks/RadioTR/SerialTR.cpp
 	"SerialTR.h"
 
 1558802963 /home/snake/Cods/CodeBlocks/RadioTR/SerialTR.h
@@ -58,10 +58,10 @@
 
 1557768717 /home/snake/Cods/CodeBlocks/RadioTR/include/TRManager.h
 
-1559884209 source:/home/snake/Cods/CodeBlocks/RadioTR/TRManager.cpp
+1560100643 source:/home/snake/Cods/CodeBlocks/RadioTR/TRManager.cpp
 	"TRManager.h"
 
-1559884919 /home/snake/Cods/CodeBlocks/RadioTR/TRManager.h
+1560100643 /home/snake/Cods/CodeBlocks/RadioTR/TRManager.h
 	<iostream>
 	<queue>
 	"SerialTR.h"
@@ -70,6 +70,7 @@
 	<thread>
 	<vector>
 	<iomanip>
+	<math.h>
 	<bitset>
 
 1558804965 source:/home/snake/Cods/CodeBlocks/RadioTR/EXTTL.cpp
